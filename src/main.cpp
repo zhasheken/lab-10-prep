@@ -1,7 +1,9 @@
 #include <iostream>
+#include <chrono>
 
 #include <SFML/Graphics.hpp>
 #include <SFML/OpenGL.hpp>
+
 
 int main() {
     // OpenGL settings we request for:
@@ -33,19 +35,41 @@ int main() {
     fullscreenTriangle[2].texCoords = {0, 2};
     // load vertex and fragment shaders:
     sf::Shader shader(std::filesystem::path{"main.vert"}, std::filesystem::path{"main.frag"});
-    // TODO: eventually add another Shader here which uses the blur fragment shader,
+    // eventually add another Shader here which uses the blur fragment shader,
     // also create a sf::RenderTexture...
+    sf::Shader blurShader(std::filesystem::path{"main.vert"}, std::filesystem::path{"blur.frag"});
+    sf::RenderTexture preBlur(window.getSize());
+
+    const auto startTime = std::chrono::steady_clock::now();
     while (window.isOpen()) {
         while (auto e = window.pollEvent()) {
             if (e->is<sf::Event::Closed>()) {
                 return 0;
             }
         }
-        // TODO: set shader uniforms and eventually draw into
+        // set shader uniforms and eventually draw into
+        shader.setUniform("windowSize", sf::Vector2f(window.getSize()));
+        const sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+        const float height = static_cast<float>(window.getSize().y);
+        shader.setUniform("mousePos", sf::Vector2f(static_cast<float>(mousePos.x), height - static_cast<float>(mousePos.y)));
+        // set the time uniform to the elapsed time in milliseconds.
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - startTime).count();
+        shader.setUniform("time", static_cast<float>(ms));
+
+
         // a RenderTexture first before postprocessing into the window target.
+        preBlur.clear(sf::Color::Black);
+        preBlur.draw(fullscreenTriangle, &shader);
+        preBlur.display();
+
+        blurShader.setUniform("texture", preBlur.getTexture());
+        blurShader.setUniform("textureSize", sf::Vector2f(preBlur.getSize()));
         window.clear(sf::Color::Black);
-        window.draw(fullscreenTriangle, &shader);
+        window.draw(fullscreenTriangle, &blurShader);
         window.display();
+
+
     }
     return 0;
 }
